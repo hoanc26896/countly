@@ -17,7 +17,8 @@
                 localTableTrackedFields: ['enabled'],
                 filterValue: "all",
                 changes: {},
-                dialog: {type: "", showDialog: false, saveButtonLabel: "", cancelButtonLabel: "", title: "", text: ""}
+                dialog: {type: "", showDialog: false, saveButtonLabel: "", cancelButtonLabel: "", title: "", text: ""},
+                isLoading: true,
             };
         },
         beforeCreate: function() {
@@ -33,6 +34,7 @@
                     for (var i = 0; i < self.pluginsData.length; i++) {
                         self.formatRow(self.pluginsData[i]);
                     }
+                    self.isLoading = false;
                 }
             );
         },
@@ -407,6 +409,10 @@
                             "value": k
                         });
                     });
+                    self.configsList.push({
+                        "label": "Feedback",
+                        "value": "feedback"
+                    });
                     if (self.searchQuery !== "") {
                         self.onEnterSearch();
                         window.scrollTo({top: 0, behavior: "smooth"});
@@ -502,7 +508,7 @@
             },
             getLabelName: function(id, ns) {
                 ns = ns || this.selectedConfig;
-                if (ns !== "frontend" && ns !== "api" && ns !== "apps" && ns !== "logs" && ns !== "security" && countlyGlobal.plugins.indexOf(ns) === -1) {
+                if (ns !== "frontend" && ns !== "api" && ns !== "apps" && ns !== "logs" && ns !== "security" && ns !== "feedback" && countlyGlobal.plugins.indexOf(ns) === -1) {
                     return null;
                 }
 

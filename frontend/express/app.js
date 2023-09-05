@@ -137,7 +137,8 @@ plugins.setConfigs("frontend", {
     use_google: true,
     code: true,
     google_maps_api_key: "",
-    offline_mode: false
+    offline_mode: false,
+    countly_tracking: false,
 });
 
 plugins.setUserConfigs("frontend", {
@@ -347,7 +348,7 @@ Promise.all([plugins.dbConnection(countlyConfig), plugins.dbConnection("countly_
 
     var app = express();
     app = expose(app);
-    app.enable('trust proxy');
+    //app.enable('trust proxy');
     app.set('x-powered-by', false);
     const limiter = rateLimit({
         windowMs: parseInt(plugins.getConfig("security").dashboard_rate_limit_window) * 1000,
@@ -899,6 +900,7 @@ Promise.all([plugins.dbConnection(countlyConfig), plugins.dbConnection("countly_
     **/
     function renderDashboard(req, res, next, member, adminOfApps, userOfApps, countlyGlobalApps, countlyGlobalAdminApps) {
         var configs = plugins.getConfig("frontend", member.settings),
+            countly_tracking = plugins.getConfig('frontend').countly_tracking,
             licenseNotification, licenseError;
         var isLocked = false;
         configs.export_limit = plugins.getConfig("api").export_limit;
@@ -976,6 +978,7 @@ Promise.all([plugins.dbConnection(countlyConfig), plugins.dbConnection("countly_
                 ssr: serverSideRendering,
                 timezones: timezones,
                 countlyTypeName: COUNTLY_NAMED_TYPE,
+                countly_tracking,
                 usermenu: {
                     feedbackLink: COUNTLY_FEEDBACK_LINK,
                     documentationLink: COUNTLY_DOCUMENTATION_LINK,
@@ -1392,8 +1395,10 @@ Promise.all([plugins.dbConnection(countlyConfig), plugins.dbConnection("countly_
     app.post(countlyConfig.path + '/setup', function(req, res/*, next*/) {
         var params = req.body || {};
         membersUtility.setup(req, function(err) {
+            const createDemoApp = !!params.createDemoApp;
+
             if (!err) {
-                res.redirect(countlyConfig.path + '/dashboard');
+                res.redirect(countlyConfig.path + '/dashboard' + (createDemoApp ? '?create_demo_app=1' : ''));
             }
             else if (err === "User exists") {
                 res.redirect(countlyConfig.path + '/login');
