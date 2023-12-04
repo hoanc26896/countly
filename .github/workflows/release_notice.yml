@@ -15,7 +15,7 @@ jobs:
       - name: Send custom JSON data to Discord
         uses: sarisia/actions-status-discord@v1
         with:
-          webhook: "https://discord.com/api/webhooks/1181122006507327498/5BaZ7Dv84xR4uKRO6vL9Veo_DIlA9SdZteSwn21nFea4O9CM6e04-TevwcTM9k7hRS7H"
+          webhook: ${{ secrets.DISCORD_WEBHOOK_URL_STAGE }}
           nodetail: true
           title: New ${{ github.repository }} version ${{ github.event.release.tag_name }} published by ${{ github.actor }}
           description: |
