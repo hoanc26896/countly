@@ -1,5 +1,7 @@
 name: Discord Release Notice
 on:
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -10,20 +12,14 @@ jobs:
         env:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
         run: echo "$GITHUB_CONTEXT"
-
-      - name: Set up environment variables
-        run: |
-         echo "DISCORD_WEBHOOK=https://discord.com/api/webhooks/1181122006507327498/5BaZ7Dv84xR4uKRO6vL9Veo_DIlA9SdZteSwn21nFea4O9CM6e04-TevwcTM9k7hRS7H" >> $GITHUB_ENV
-
-
       - name: Send custom JSON data to Discord
-        uses: Ilshidur/action-discord@0.3.2
+        uses: sarisia/actions-status-discord@v1
         with:
-          args: |
-            {
-              "repository": "${{ github.repository }}",
-              "tag_name": "${{ github.event.release.tag_name }}",
-              "actor": "${{ github.actor }}",
-              "body": ${{ toJSON(github.event.release.body) }},
-              "html_url": "${{ github.event.release.html_url }}"
-            }
+          webhook: "https://discord.com/api/webhooks/1181122006507327498/5BaZ7Dv84xR4uKRO6vL9Veo_DIlA9SdZteSwn21nFea4O9CM6e04-TevwcTM9k7hRS7H"
+          nodetail: true
+          title: New ${{ github.repository }} version ${{ github.event.release.tag_name }} published by ${{ github.actor }}
+          description: |
+            ${{ toJSON(github.event.release.body) }}
+            Version `23.11.4`
+            https://github.com/Countly/countly-server/releases/tag/23.11.4
+            Click [here](https://github.com/Countly/countly-server/blob/master/CHANGELOG.md) to view the change log!
