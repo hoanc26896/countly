@@ -1,4 +1,4 @@
-name: Discord Release Notice
+name: Release Notice
 on:
   release:
     types: [published]
@@ -19,7 +19,7 @@ jobs:
           nodetail: true
           title: New ${{ github.repository }} version ${{ github.event.release.tag_name }} published by ${{ github.actor }}
           description: |
-            ${{ toJSON(github.event.release.body) }}
+            Description: ${{ github.workflow }}
             Version `23.11.4`
             https://github.com/Countly/countly-server/releases/tag/23.11.4
             Click [here](https://github.com/Countly/countly-server/blob/master/CHANGELOG.md) to view the change log!
