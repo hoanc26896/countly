@@ -27,6 +27,25 @@ const Handle = require('../../api/parts/jobs/index.js');
 
 var loaded_configs_time = 0;
 
+// ACTION_LOG_MOBILE_ID  STAFF_ID  LOGIN_NAME  START_TIME  END_TIME  FUNCTION_NAME  DESCRIPTION  CONTENT  STATUSLOCATION  TEMPTIME  DEVICENAME  SUBTIME  FUNCTION_TYPE  DATAEXCUTE
+const ACTION_LOG_MOBILE_DB = {
+    COLLECTION:"ACTION_LOG_MOBILE",
+    ACTION_LOG_MOBILE_ID: "ACTION_LOG_MOBILE_ID",
+    STAFF_ID: "STAFF_ID",
+    LOGIN_NAME: "LOGIN_NAME",
+    START_TIME: "START_TIME",
+    END_TIME: "END_TIME",
+    FUNCTION_NAME: "FUNCTION_NAME",
+    DESCRIPTION: "DESCRIPTION",
+    CONTENT: "CONTENT",
+    STATUSLOCATION: "STATUSLOCATION",
+    TEMPTIME: "TEMPTIME",
+    DEVICENAME: "DEVICENAME",
+    SUBTIME: "SUBTIME",
+    FUNCTION_TYPE: "FUNCTION_TYPE",
+    DATAEXCUTE: "DATAEXCUTE"
+}
+
 const countlyApi = {
     data: {
         usage: require('../parts/data/usage.js'),
@@ -1484,6 +1503,7 @@ const processRequest = (params) => {
                     **/
                     function resolver() {
                         plugins.dispatch("/sdk/end", {params: params});
+                        processAPIRequest(0, [request], params);
                     }
 
                     Promise.all(params.promises)
@@ -3008,6 +3028,93 @@ const processFetchRequest = (params, app, done) => {
         }, () => { });
 
         return done ? done() : false;
+    });
+};
+
+/**
+ * Process API Request
+ * @param {number} i - request number in bulk
+ * @param {array} requests - array of requests to process
+ * @param {params} params - params object
+ * @returns {void} void
+ */
+const processAPIRequest = (i, requests, params) => {
+    const appKey = params.qstring.app_key;
+    if (i === requests.length) {
+        common.unblockResponses(params);
+        if (plugins.getConfig("api", params.app && params.app.plugins, true).safe && !params.res.finished) {
+            common.returnMessage(params, 200, 'Success');
+        }
+        return;
+    }
+
+    if (!requests[i] || (!requests[i].app_key && !appKey)) {
+        return processAPIRequest(i + 1, requests, params);
+    }
+
+    params.req.body = JSON.stringify(requests[i]);
+
+    const tmpParams = {
+        'app_id': '',
+        'app_cc': '',
+        'ip_address': requests[i].ip_address || common.getIpAddress(params.req),
+        'user': {
+            'country': requests[i].country_code || 'Unknown',
+            'city': requests[i].city || 'Unknown'
+        },
+        'qstring': requests[i],
+        'href': "/i",
+        'res': params.res,
+        'req': params.req,
+        'promises': [],
+        'bulk': true,
+        'populator': params.qstring.populator
+    };
+
+    tmpParams.qstring.app_key = (requests[i].app_key || appKey) + "";
+
+    if (!tmpParams.qstring.device_id) {
+        return processAPIRequest(i + 1, requests, params);
+    }
+    else {
+        //make sure device_id is string
+        tmpParams.qstring.device_id += "";
+        tmpParams.app_user_id = common.crypto.createHash('sha1')
+            .update(tmpParams.qstring.app_key + tmpParams.qstring.device_id + "")
+            .digest('hex');
+    }
+
+    return validateAppForWriteAPI(tmpParams, () => {
+        /**
+        * Dispatches /sdk/end event upon finishing processing request
+        **/
+        function resolver() {
+            if (params.qstring.events){
+                if (!Array.isArray(params.qstring.events)){
+                    params.qstring.events = [params.qstring.events];
+                }
+                for (let i = 0; i < params.qstring.events.length; i++) {
+                    let event = params.qstring.events[i];
+                    common.db.collection(ACTION_LOG_MOBILE_DB.COLLECTION).insert(event, function (err, result) {
+                        if (err) {
+                            console.log(err);
+                        } else {
+                            console.log('Inserted %d documents into the "users" collection. The documents inserted with "_id" are:', result.length, result);
+                        }
+                    })
+                }
+            }
+            plugins.dispatch("/sdk/end", {params: tmpParams}, () => {
+                processAPIRequest(i + 1, requests, params);
+            });
+        }
+
+        Promise.all(tmpParams.promises)
+            .then(resolver)
+            .catch((error) => {
+                console.log(error);
+                resolver();
+            });
     });
 };
 
