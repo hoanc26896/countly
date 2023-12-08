@@ -141,6 +141,7 @@ plugins.register('/cache/init', function() {
 
 
 plugins.register('/i', async ob => {
+    log.d('plugins.register');
     let params = ob.params,
         la = params.app_user.la;
     if (params.qstring.events && Array.isArray(params.qstring.events)) {
