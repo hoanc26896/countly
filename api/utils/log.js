@@ -89,7 +89,7 @@ const NAMES = {
  */
 var log = function(level, prefix, enabled, outer, out, styler) {
     return function() {
-        // console.log(level, prefix, enabled(), arguments);
+        console.log(level, prefix, enabled(), arguments);
         if (enabled()) {
             var args = Array.prototype.slice.call(arguments, 0);
             var color = styles.moduleColors[prefix];

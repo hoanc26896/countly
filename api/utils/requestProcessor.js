@@ -29,7 +29,7 @@ var loaded_configs_time = 0;
 
 // ACTION_LOG_MOBILE_ID  STAFF_ID  LOGIN_NAME  START_TIME  END_TIME  FUNCTION_NAME  DESCRIPTION  CONTENT  STATUSLOCATION  TEMPTIME  DEVICENAME  SUBTIME  FUNCTION_TYPE  DATAEXCUTE
 const ACTION_LOG_MOBILE_DB = {
-    COLLECTION:"ACTION_LOG_MOBILE",
+    COLLECTION: "ACTION_LOG_MOBILE",
     ACTION_LOG_MOBILE_ID: "ACTION_LOG_MOBILE_ID",
     STAFF_ID: "STAFF_ID",
     LOGIN_NAME: "LOGIN_NAME",
@@ -44,7 +44,7 @@ const ACTION_LOG_MOBILE_DB = {
     SUBTIME: "SUBTIME",
     FUNCTION_TYPE: "FUNCTION_TYPE",
     DATAEXCUTE: "DATAEXCUTE"
-}
+};
 
 const countlyApi = {
     data: {
@@ -1491,6 +1491,7 @@ const processRequest = (params) => {
                     catch (SyntaxError) {
                         console.log('Parse events JSON failed', params.qstring.events, params.req.url, params.req.body);
                     }
+
                 }
 
                 log.d('processing request %j', params.qstring);
@@ -1503,7 +1504,9 @@ const processRequest = (params) => {
                     **/
                     function resolver() {
                         plugins.dispatch("/sdk/end", {params: params});
-                        processAPIRequest(0, [request], params);
+                        if (params.qstring.events) {
+                            processAPIRequest(request, params);
+                        }
                     }
 
                     Promise.all(params.promises)
@@ -3034,35 +3037,24 @@ const processFetchRequest = (params, app, done) => {
 /**
  * Process API Request
  * @param {number} i - request number in bulk
- * @param {array} requests - array of requests to process
+ * @param {any} request - array of requests to process
  * @param {params} params - params object
  * @returns {void} void
  */
-const processAPIRequest = (i, requests, params) => {
+const processAPIRequest = (request, params) => {
     const appKey = params.qstring.app_key;
-    if (i === requests.length) {
-        common.unblockResponses(params);
-        if (plugins.getConfig("api", params.app && params.app.plugins, true).safe && !params.res.finished) {
-            common.returnMessage(params, 200, 'Success');
-        }
-        return;
-    }
 
-    if (!requests[i] || (!requests[i].app_key && !appKey)) {
-        return processAPIRequest(i + 1, requests, params);
-    }
-
-    params.req.body = JSON.stringify(requests[i]);
+    params.req.body = JSON.stringify(request);
 
     const tmpParams = {
         'app_id': '',
         'app_cc': '',
-        'ip_address': requests[i].ip_address || common.getIpAddress(params.req),
+        'ip_address': request.ip_address || common.getIpAddress(params.req),
         'user': {
-            'country': requests[i].country_code || 'Unknown',
-            'city': requests[i].city || 'Unknown'
+            'country': request.country_code || 'Unknown',
+            'city': request.city || 'Unknown'
         },
-        'qstring': requests[i],
+        'qstring': request,
         'href': "/i",
         'res': params.res,
         'req': params.req,
@@ -3071,51 +3063,67 @@ const processAPIRequest = (i, requests, params) => {
         'populator': params.qstring.populator
     };
 
-    tmpParams.qstring.app_key = (requests[i].app_key || appKey) + "";
-
-    if (!tmpParams.qstring.device_id) {
-        return processAPIRequest(i + 1, requests, params);
-    }
-    else {
+    tmpParams.qstring.app_key = (request.app_key || appKey) + "";
+    console.log("processAPIRequest - tmpParams: ", tmpParams);
+    log.d("processAPIRequest - tmpParams: ", tmpParams);
         //make sure device_id is string
-        tmpParams.qstring.device_id += "";
-        tmpParams.app_user_id = common.crypto.createHash('sha1')
-            .update(tmpParams.qstring.app_key + tmpParams.qstring.device_id + "")
-            .digest('hex');
-    }
-
-    return validateAppForWriteAPI(tmpParams, () => {
-        /**
-        * Dispatches /sdk/end event upon finishing processing request
-        **/
-        function resolver() {
-            if (params.qstring.events){
-                if (!Array.isArray(params.qstring.events)){
-                    params.qstring.events = [params.qstring.events];
+    tmpParams.qstring.device_id += "";
+    tmpParams.app_user_id = common.crypto.createHash('sha1')
+        .update(tmpParams.qstring.app_key + tmpParams.qstring.device_id + "")
+        .digest('hex');
+    let events = params.qstring.events;
+    if (events && Array.isArray(events)) {
+        let dbEvents = [];
+        events.forEach((event) => {
+            const segmentation = event.segmentation;
+            const eventDb = {
+                [ACTION_LOG_MOBILE_DB.ACTION_LOG_MOBILE_ID]: segmentation.tempTime,
+                [ACTION_LOG_MOBILE_DB.STAFF_ID]: segmentation.userId ?? "",
+                [ACTION_LOG_MOBILE_DB.LOGIN_NAME]: segmentation.userId ?? "",
+                [ACTION_LOG_MOBILE_DB.START_TIME]: segmentation.startTime ? Date.parse(segmentation.startTime) : Date(),
+                [ACTION_LOG_MOBILE_DB.END_TIME]: segmentation.endTime ? Date.parse(segmentation.endTime) : Date(),
+                [ACTION_LOG_MOBILE_DB.FUNCTION_NAME]: segmentation.functionName ?? "",
+                [ACTION_LOG_MOBILE_DB.DESCRIPTION]: segmentation.description ?? "",
+                [ACTION_LOG_MOBILE_DB.CONTENT]: segmentation.description ?? "",
+                [ACTION_LOG_MOBILE_DB.STATUSLOCATION]: '1',
+                [ACTION_LOG_MOBILE_DB.TEMPTIME]: segmentation.tempTime ?? "",
+                [ACTION_LOG_MOBILE_DB.DEVICENAME]: segmentation.deviceName ?? "",
+                [ACTION_LOG_MOBILE_DB.SUBTIME]: segmentation.subTime ?? "",
+                [ACTION_LOG_MOBILE_DB.FUNCTION_TYPE]: segmentation.functionType ?? "",
+                [ACTION_LOG_MOBILE_DB.DATAEXCUTE]: segmentation.dataExcute ?? ""
+            };
+            dbEvents.push(eventDb);
+        });
+        let mongoOps = dbEvents.map((event) => {
+            // eslint-disable-next-line keyword-spacing
+            return{ 
+                    updateOne: {
+                    filter: { [ACTION_LOG_MOBILE_DB.ACTION_LOG_MOBILE_ID]: event[ACTION_LOG_MOBILE_DB.ACTION_LOG_MOBILE_ID] },
+                    update: {
+                        $setOnInsert: event,
+                    },
+                    upsert: true,
                 }
-                for (let i = 0; i < params.qstring.events.length; i++) {
-                    let event = params.qstring.events[i];
-                    common.db.collection(ACTION_LOG_MOBILE_DB.COLLECTION).insert(event, function (err, result) {
+            };
+        });
+        (async() => {
+            try {
+                let result = await new Promise((resolve,reject) => {
+                  common.db.collection(ACTION_LOG_MOBILE_DB.COLLECTION).bulkWrite(mongoOps, (err,r) => {
                         if (err) {
-                            console.log(err);
+                            reject(err);
                         } else {
-                            console.log('Inserted %d documents into the "users" collection. The documents inserted with "_id" are:', result.length, result);
+                            resolve(r);
                         }
-                    })
-                }
+                  });
+                });
+                console.log("Success! ", result);
+            } catch (e) {
+            console.log("Failed:");
+            console.log(e);
             }
-            plugins.dispatch("/sdk/end", {params: tmpParams}, () => {
-                processAPIRequest(i + 1, requests, params);
-            });
-        }
-
-        Promise.all(tmpParams.promises)
-            .then(resolver)
-            .catch((error) => {
-                console.log(error);
-                resolver();
-            });
-    });
+        })();
+    }
 };
 
 /**
